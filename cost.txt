@@ -1,0 +1,153 @@
+1 - stock_items (quantity) join items join stocks join practices 
+   cosume_stocks join practices join adujstment items parent table(adjustments) join stock_return_items 
+join on_hand_stocks
+    
+
+- (stock_items(quantity)+adjustment_items(quantity))-(cosume_stocks(quantity)+stock_return_items(return_quantity))* unit_cost
+
+
+with cte1 as (
+select distinct 
+p.id, 
+p.name,  
+sum(si.total_value) over (partition by p.id, date_part('month', si.created_at::date)) as StockAmount,
+date_part('month', si.created_at::date)  as "currentmonth" ,
+date_part('year', si.created_at::date) as CurrentYear
+
+from practices p join batches b on p.id = b.practice_id join  stock_items si on b.id = si.batch_id
+
+where
+p.is_franchise_audited = 'true' or  p.id = '92164'
+and (si.total_value is not null or si.total_value != 0)
+and si.created_at::date >= date'2023-01-01'
+),
+
+cte2 as (
+
+select 
+distinct
+p.id, 
+p.name, 
+py.created_at::date as Sales_date,
+sum(py.amount_paid) over (partition by p.id, date_part('month', py.created_at::date)) as SalesAmount, 
+date_part('month', py.created_at::date) as "currentmonth", 
+date_part('year', py.created_at::date) as This_year, 
+case when p.id = 79926 and i.order_id is null then p.id 
+when p.id = 79926 and i.order_id is not null then null
+when p.id in (43923,90543,76743,87125,84322,86979,87955,88538,89124,89383,89407,89499,89769,39429) then p.id end as marker
+from 
+practices p left join invoices i on p.id = i.practice_id left join payments py on i.id = py.invoice_id
+where p.is_franchise_audited = 'true' or p.id = '92164'
+and py.created_at >= date'2023-01-01'
+and p.deleted_at is null
+
+) 
+
+select distinct cte1.id, cte2.name, cte1.currentmonth,  StockAmount, SalesAmount, 1-(StockAmount/SalesAmount) as sales_percentage 
+from cte1 join cte2 on cte1.id = cte2.id and cte1.currentmonth = cte2.currentmonth and cte1.CurrentYear = cte2.This_year 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+WITH relevant_data AS (
+    SELECT
+        a.practice_id,
+        MAX(a.created_date) AS date,
+        COUNT(DISTINCT a.id) AS records
+    FROM (
+        SELECT
+            a.practice_id,
+            a.id,
+            a.created_at::date AS created_date
+        FROM (
+            SELECT a.practice_id, a.id, a.created_at
+            FROM appointments AS a
+            LEFT JOIN users AS u ON a.created_by_id = u.id
+            LEFT JOIN user_practices AS up ON u.id = up.user_id
+            INNER JOIN meta_customers AS m ON m.practice_id = a.practice_id
+            WHERE
+                up.role != 3
+                AND (u.is_admin = FALSE OR u.is_admin IS NULL)
+                AND a.deleted_at IS NULL
+                AND a.created_at >= m.registration_date
+                AND m.practice_type NOT IN (
+                    'Corporate Wellness Program',
+                    'Corporate',
+                    'Patient Referrals',
+                    'Pharmacy'
+                )
+                AND a.created_at >= '2023-01-01'::timestamp
+            UNION ALL
+            SELECT a.practice_id, a.id, a.created_at
+            FROM invoices AS a
+            INNER JOIN meta_customers AS m ON m.practice_id = a.practice_id
+            WHERE
+                a.deleted_at IS NULL
+                AND a.created_at >= m.registration_date
+                AND m.practice_type NOT IN (
+                    'Corporate Wellness Program',
+                    'Corporate',
+                    'Patient Referrals',
+                    'Pharmacy'
+                )
+                AND a.created_at >= '2023-01-01'::timestamp
+            UNION ALL
+            SELECT a.practice_id, a.id, a.created_at
+            FROM prescription_values AS a
+            INNER JOIN meta_customers AS m ON m.practice_id = a.practice_id
+            WHERE
+                a.deleted_at IS NULL
+                AND a.created_at >= m.registration_date
+                AND m.practice_type NOT IN (
+                    'Corporate Wellness Program',
+                    'Corporate',
+                    'Patient Referrals',
+                    'Pharmacy'
+                )
+                AND a.created_at >= '2023-01-01'::timestamp
+            UNION ALL
+            SELECT a.practice_id, a.id, a.created_at
+            FROM patients AS a
+            INNER JOIN meta_customers AS m ON m.practice_id = a.practice_id
+            WHERE
+                a.deleted_at IS NULL
+                AND a.created_at >= m.registration_date
+                AND m.practice_type NOT IN (
+                    'Corporate Wellness Program',
+                    'Corporate',
+                    'Patient Referrals',
+                    'Pharmacy'
+                )
+                AND a.created_at >= '2023-01-01'::timestamp
+        ) AS a
+        GROUP BY a.practice_id, a.id, a.created_at::date
+    ) AS a
+    GROUP BY a.practice_id
+)
+
+SELECT
+    practice_id,
+    MAX(date) AS date,
+    SUM(records) AS record
+FROM relevant_data
+GROUP BY practice_id;

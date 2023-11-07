@@ -1,0 +1,118 @@
+CREATE VIEW practice_metrics AS
+
+Select 
+a.practice_id,
+max((a.created_at  at time zone 'utc' at time zone 'pkt')::date) as date,
+count(distinct a.id) as records
+from appointments a 
+left outer join users u on a.created_by_id = u.id 
+left outer join user_practices up on u.id = up.user_id 
+inner join meta_customers m on m.practice_id = a.practice_id 
+  and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy') 
+  and a.created_at::date >= m.registration_date::date 
+where up.role != 3 
+  and (u.is_admin = false or u.is_admin is null) 
+  and a.deleted_at is null  
+  and extract(year from (a.created_at  at time zone 'utc' at time zone 'pkt')) >= 2021 
+Group by a.practice_id
+
+Union all
+
+Select 
+a.practice_id,
+max((a.created_at  at time zone 'utc' at time zone 'pkt')::date) as date,
+count(distinct a.id) as records
+From 
+invoices as a 
+inner join meta_customers m on m.practice_id = a.practice_id 
+  and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy') 
+  and a.created_at::date >= m.registration_date::date
+Where a.deleted_at is null 
+  and extract(year from (a.created_at  at time zone 'utc' at time zone 'pkt')) >= 2021
+Group by a.practice_id
+
+Union all
+
+Select 
+a.practice_id,
+max((a.created_at  at time zone 'utc' at time zone 'pkt')::date) as date,
+count(distinct a.id) as records
+From 
+prescription_values as a  
+inner join meta_customers m on m.practice_id = a.practice_id 
+  and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy') 
+  and a.created_at::date >= m.registration_date::date
+Where a.deleted_at is null 
+  and extract(year from (a.created_at  at time zone 'utc' at time zone 'pkt')) >= 2021
+Group by a.practice_id
+
+Union all
+
+Select 
+a.practice_id,
+max((a.created_at  at time zone 'utc' at time zone 'pkt')::date) as date,
+count(distinct a.id) as records
+From 
+patients as a 
+inner join meta_customers m on m.practice_id = a.practice_id 
+  and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy') 
+  and a.created_at::date >= m.registration_date::date
+Where a.deleted_at is null 
+  and extract(year from (a.created_at  at time zone 'utc' at time zone 'pkt')) >= 2021
+Group by a.practice_id;
+
+
+
+
+
+
+
+
+
+
+CREATE  VIEW practice_usage AS
+    SELECT 'appointments' AS type,
+           (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE AS date,
+           a.practice_id,
+           COUNT(DISTINCT a.id) AS records
+    FROM appointments a
+    LEFT OUTER JOIN users u ON a.created_by_id = u.id
+    LEFT OUTER JOIN user_practices up ON u.id = up.user_id
+    WHERE a.created_at::DATE BETWEEN Date_trunc('month', Date_trunc('month', NOW()) - INTERVAL '1 day') - INTERVAL '0 day' AND NOW()
+    AND up.role != 3
+    AND (u.is_admin = FALSE OR u.is_admin IS NULL)
+    AND EXTRACT(YEAR FROM (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')) >= 2021
+    GROUP BY (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE, a.practice_id
+    UNION ALL
+    SELECT 'invoices' AS type,
+           (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE AS date,
+           a.practice_id,
+           COUNT(DISTINCT a.id) AS records
+    FROM invoices a
+    WHERE a.created_at::DATE BETWEEN Date_trunc('month', Date_trunc('month', NOW()) - INTERVAL '1 day') - INTERVAL '0 day' AND NOW()
+    GROUP BY (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE, a.practice_id
+    UNION ALL
+    SELECT 'health_records' AS type,
+           (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE AS date,
+           a.practice_id,
+           COUNT(DISTINCT a.id) AS records
+    FROM prescription_values a
+    WHERE a.created_at::DATE BETWEEN Date_trunc('month', Date_trunc('month', NOW()) - INTERVAL '1 day') - INTERVAL '0 day' AND NOW()
+    GROUP BY (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE, a.practice_id
+    UNION ALL
+    SELECT 'patients' AS type,
+           (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE AS date,
+           a.practice_id,
+           COUNT(DISTINCT a.id) AS records
+    FROM patients a
+    WHERE a.created_at::DATE BETWEEN Date_trunc('month', Date_trunc('month', NOW()) - INTERVAL '1 day') - INTERVAL '0 day' AND NOW()
+    GROUP BY (a.created_at AT TIME ZONE 'utc' AT TIME ZONE 'pkt')::DATE, a.practice_id
+
+
+
+
+
+
+
+
+

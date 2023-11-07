@@ -1,0 +1,1 @@
+ sum(distinct pv.amount_paid)- sum((l.quantity/(CASE WHEN l.unit = 0 THEN it.conversion_unit ELSE 1 END) - l.return_quantity) * l.discounted_price) as profit

@@ -1,0 +1,28 @@
+SELECT 
+distinct a.id,
+    SUM(distinct a.amount_paid) - SUM((a.quantity / (CASE WHEN a.unit = 0 THEN a.conversion_unit ELSE 1 END) - a.return_quantity / (CASE WHEN a.unit = 0 THEN a.conversion_unit ELSE 1 END)) * a.discounted_price) AS profit
+FROM (
+    SELECT 
+        DISTINCT l.quantity,
+        pv.amount_paid,
+        it.conversion_unit,
+        l.return_quantity,
+        l.discounted_price,
+        l.unit,
+        i.id
+    FROM
+        practices p 
+    INNER JOIN invoices i ON p.id = i.practice_id
+    INNER JOIN line_items l ON i.id = l.invoice_id
+    INNER JOIN payments pv ON i.id = pv.invoice_id
+    INNER JOIN items it ON it.id = l.item_id 
+    WHERE
+        p.id = 92164
+        AND i.deleted_at IS NULL
+        AND l.deleted_at IS NULL
+        AND p.deleted_at IS NULL 
+        AND pv.payment_date AT TIME ZONE 'utc' AT TIME ZONE 'pkt' >= CURRENT_DATE - INTERVAL '1 day' 
+        AND i.id = 22302792
+) AS a
+group by
+a.id

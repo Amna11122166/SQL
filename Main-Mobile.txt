@@ -1,0 +1,57 @@
+SELECT 
+(o.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+case 
+when o.origin = 3 then 'Android'
+when o.origin = 4 then 'iOS' 
+else '' end platform,
+'Lab Orders' as type,
+count(distinct o.id) as values
+FROM orders o
+WHERE 
+ o."deleted_at" IS NULL and o.which_type = 3 and o.origin in (3,4)
+group by 
+(o.created_at  at time zone 'utc' at time zone 'pkt')::date,
+o.origin
+
+union all
+
+SELECT 
+(o.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+case 
+when o.origin = 3 then 'Android'
+when o.origin = 4 then 'iOS' 
+else '' end platform,
+'Orders' as type,
+count(distinct o.id) as values
+FROM orders o
+LEFT OUTER JOIN locations l ON l.locationable_id = o.id AND l.locationable_type = 'Order'
+LEFT OUTER JOIN order_items i ON i."order_id" = o."id" AND i."deleted_at" IS NULL 
+LEFT OUTER JOIN order_infos inf ON inf."order_id" = o."id" 
+LEFT OUTER JOIN survey_scores s ON s."order_id" = o."id"             
+LEFT OUTER JOIN users u ON u."id" = o."user_id" AND u."deleted_at" IS NULL 
+left outer join (select l.phone,min(o.placed_at) as reg_date from orders o
+LEFT OUTER JOIN locations l ON l.locationable_id = o.id AND l.locationable_type = 'Order' group by l.phone) as ab on l.phone = ab.phone
+WHERE  o.origin in (3,4) and o."deleted_at" IS NULL AND (((i.order_item_type = 0 and (o.which_type = 2 or o.which_type = 3) and l.phone != ''   ) or o.which_type = 2 and l.phone != ''   )) AND (u.is_black_listed is null or o.user_id is null or u.is_black_listed = 'f')  and o.state = 'delivered'
+group by 
+(o.created_at  at time zone 'utc' at time zone 'pkt')::date ,
+o.origin
+
+union all
+--
+select 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+case 
+when a.origin = 3 then 'Android'
+when a.origin = 4 then 'iOS' 
+else '' end platform,
+'Appointments' as type,
+count(distinct a.id) as values
+from 
+appointments a
+where
+a.origin in (3,4)
+and deleted_at is null
+group by 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date,
+platform
+
