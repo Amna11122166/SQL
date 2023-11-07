@@ -1,0 +1,99 @@
+WITH weekly_registrations AS (
+    SELECT
+        date_trunc('week', m.registration_date) AS week_start_date,
+        extract(week FROM m.registration_date) AS week_number,
+        COUNT(DISTINCT m.practice_id) AS registrations
+    FROM
+        meta_customers m
+    INNER JOIN
+        practices p ON m.practice_id = p.id
+    WHERE
+        m.practice_type NOT IN ('Corporate Wellness Program', 'Corporate', 'Patient Referrals', 'Pharmacy')
+    GROUP BY
+        week_start_date, week_number
+),
+cumulative_registrations AS (
+    SELECT
+        week_start_date,
+        week_number,
+        registrations,
+        SUM(registrations) OVER (ORDER BY week_start_date) AS cumulative_registrations
+    FROM
+        weekly_registrations
+)
+
+select 
+fb.week_start_date,
+fb.week_number,
+sum(fb.users) as users,
+f.cumulative_registrations as registrations,
+sum(fb.users)/f.cumulative_registrations as usage
+from (
+select 
+date_trunc('week', a.date) as week_start_date,
+extract(week from a.date) as week_number,
+count(distinct a.practice_id) as users
+from 
+(
+Select 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+a.practice_id,
+'appointments' as status,
+count(distinct a.id) as records
+ from appointments a 
+ inner join meta_customers m on m.practice_id = a.practice_id  
+ where 
+  a.created_at  at time zone 'utc' at time zone 'pkt' between '2023-09-01' and '2023-10-31' and  m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy')
+Group by 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date,
+a.practice_id
+
+Union all
+
+Select 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+a.practice_id,
+'invoices' as status,
+count(distinct a.id) as records
+From 
+invoices as a inner join meta_customers m on m.practice_id = a.practice_id  
+Where a.created_at  at time zone 'utc' at time zone 'pkt'  between '2023-09-01' and '2023-10-31' and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy')
+Group by 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date,
+a.practice_id
+
+Union all
+
+Select 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+a.practice_id,
+'health_records' as status,
+count(distinct a.id) as records
+From 
+prescription_values as a  inner join meta_customers m on m.practice_id = a.practice_id 
+Where a.created_at  at time zone 'utc' at time zone 'pkt'  between '2023-09-01' and '2023-10-31' and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy')
+Group by 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date,
+a.practice_id
+
+Union all
+
+Select 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date as date,
+a.practice_id,
+'patients' as status,
+count(distinct a.id) as records
+From 
+patients as a inner join meta_customers m on m.practice_id = a.practice_id 
+Where a.created_at  at time zone 'utc' at time zone 'pkt'  between '2023-09-01' and '2023-10-31' and m.practice_type not in ('Corporate Wellness Program','Corporate','Patient Referrals','Pharmacy')
+Group by 
+(a.created_at  at time zone 'utc' at time zone 'pkt')::date,
+a.practice_id
+) as a 
+group by 
+date_trunc('week', a.date),
+extract(week from a.date)
+) as fb 
+left outer join cumulative_registrations f on fb.week_start_date = f.week_start_date
+group by 
+fb.week_start_date,fb.week_number,f.cumulative_registrations
